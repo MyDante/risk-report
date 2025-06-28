@@ -49,14 +49,12 @@ jobs:
         run: python predict_attacks.py
 
       - name: Deploy to gh-pages
-      - run: |
-        git config user.name "github-actions[bot]"
-        git config user.email "actions@github.com"
-        # Переключаемся (или создаём) ветку gh-pages
-        git checkout -B gh-pages
-        # Забираем актуальный index.html из main
-        git checkout main -- index.html
-        # Добавляем все нужные файлы
-        git add index.html daily_risk_report.html attack_map.html predictions_*.html
-        git commit -m "Auto-update reports and predictions" || echo "No changes"
-        git push -f origin gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "actions@github.com"
+          git checkout -B gh-pages
+          git checkout main -- index.html
+          git add index.html daily_risk_report.html attack_map.html predictions_*.html
+          git commit -m "Auto-update reports and predictions" || echo "No changes"
+          git push -f origin gh-pages
+
