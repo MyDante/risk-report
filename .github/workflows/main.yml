@@ -1,5 +1,8 @@
 name: Multi‐run Risk Report
 
+permissions:
+  contents: write
+
 on:
   schedule:
     - cron: '0 3 * * *'   # 06:00 Kyiv
