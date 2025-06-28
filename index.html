@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Risk Report</title>
+</head>
+<body>
+  <h1>Щоденний звіт</h1>
+  <ul>
+    <li><a href="daily_risk_report.html">Звіт про ризики</a></li>
+    <li><a href="attack_map.html">Карта атак</a></li>
+    <li><a id="pred-link" href="#">Прогноз атак</a></li>
+  </ul>
+  <script>
+    // Підставляємо “сьогоднішню” дату у форматі YYYY-MM-DD
+    const today = new Date().toISOString().slice(0,10);
+    document.getElementById('pred-link').href = `predictions_${today}.html`;
+  </script>
+</body>
+</html>
