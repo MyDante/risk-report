@@ -38,7 +38,7 @@ jobs:
     - name: Build map
       run: python make_map.py
 
-          - name: Engineer features
+    - name: Engineer features
       run: python engineer_features.py
 
     - name: Train attack predictor
