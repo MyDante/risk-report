@@ -39,6 +39,9 @@ jobs:
       - name: Build map
         run: python make_map.py
 
+      - name: Merge new attacks into history
+        run: python merge_attacks.py
+
       - name: Engineer features
         run: python engineer_features.py
 
