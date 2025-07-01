@@ -45,7 +45,7 @@ jobs:
       - name: Train attack predictor
         run: python train_model.py
 
-      - name: Predict attacks
+            - name: Predict next-day attacks
         run: python predict_multiclass.py
 
       - name: Deploy to gh-pages
