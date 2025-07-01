@@ -1,53 +1,57 @@
 import pandas as pd
+from datetime import timedelta
 
-# 1) Завантажуємо історію атак
-attacks = pd.read_csv('attacks_history.csv', parse_dates=['date'])
-attacks['city'] = attacks['city'].str.strip()
+def main():
+    # 1) Завантажуємо історію атак
+    attacks = pd.read_csv('attacks_history.csv', parse_dates=['date'])
 
-# 2) Завантажуємо координати міст
-coords = pd.read_csv('city_coords.csv')
+    # 2) Генеруємо грід міст×дат
+    all_dates  = pd.date_range(attacks['date'].min(), attacks['date'].max(), freq='D')
+    all_cities = attacks['city'].unique()
+    grid = pd.MultiIndex.from_product([all_cities, all_dates], names=['city','date'])
+    df = pd.DataFrame(index=grid).reset_index()
 
-# 3) Завантажуємо сигнали підготовки (якщо такий файл є)
-try:
-    signals = pd.read_csv('news_with_signals.csv', parse_dates=['date'])
-    signals = signals[signals['preparation_signal'] == True]
-    signals['city'] = signals['city'].str.strip()
-except FileNotFoundError:
-    signals = pd.DataFrame(columns=['city','date'])
+    # 3) Рахуємо загальні атаки і по кожному типу
+    types = attacks['attack_type'].unique().tolist()
+    cnt = attacks.groupby(['city','date']).size().rename('attacks').reset_index()
+    df = df.merge(cnt, on=['city','date'], how='left').fillna({'attacks':0})
+    for t in types:
+        cnt_t = (
+            attacks[attacks['attack_type']==t]
+                   .groupby(['city','date'])
+                   .size().rename(t).reset_index()
+        )
+        df = df.merge(cnt_t, on=['city','date'], how='left').fillna({t:0})
 
-# 4) Створюємо «грид» всіх міст × всіх дат
-all_dates  = pd.date_range(attacks['date'].min(), attacks['date'].max(), freq='D')
-all_cities = attacks['city'].unique()
-grid = pd.MultiIndex.from_product([all_cities, all_dates], names=['city','date'])
-df = pd.DataFrame(index=grid).reset_index()
+    # 4) Rolling-ознаки за 1,7,30 днів
+    windows = [1,7,30]
+    feat_cols = []
+    for w in windows:
+        df[f'att_{w}d'] = df.groupby('city')['attacks'].transform(
+            lambda x: x.rolling(w, min_periods=1).sum()
+        )
+        feat_cols.append(f'att_{w}d')
+        for t in types:
+            col = f'{t}_{w}d'
+            df[col] = df.groupby('city')[t].transform(
+                lambda x: x.rolling(w, min_periods=1).sum()
+            )
+            feat_cols.append(col)
 
-# 5) Додаємо до гриду координати
-df = df.merge(coords, on='city', how='left')
+    # 5) Створюємо таргет next_type — тип атаки наступного дня або 'none'
+    # зібрати списки attack_type по city & date
+    grouped = attacks.groupby(['city','date'])['attack_type'].agg(list)
+    idx = pd.MultiIndex.from_frame(df[['city','date']])
+    next_map = grouped.reindex(idx)
+    # замінюємо NaN на порожній список
+    next_map = next_map.map(lambda x: x if isinstance(x, list) else [])
+    # вибираємо перший елемент списку або 'none'
+    df['next_type'] = next_map.map(lambda lst: lst[0] if lst else 'none').values
 
-# 6) Рахуємо разом зведені таблиці атак і сигналів
-att_cnt = attacks.groupby(['city','date']).size().rename('attacks').reset_index()
-sig_cnt = signals.groupby(['city','date']).size().rename('signals').reset_index()
+    # 6) Зберігаємо фінальний датасет
+    out = df[['city','date'] + feat_cols + ['next_type']]
+    out.to_csv('model_dataset.csv', index=False)
+    print("✅ Збережено model_dataset.csv з", len(feat_cols), "фічами і next_type")
 
-df = df.merge(att_cnt, on=['city','date'], how='left').fillna({'attacks': 0})
-df = df.merge(sig_cnt, on=['city','date'], how='left').fillna({'signals': 0})
-
-# 7) Створюємо rolling-ознаки
-for w in [1, 7, 30]:
-    df[f'cnt_{w}d'] = df.groupby('city')['attacks'].transform(
-        lambda x: x.rolling(window=w, min_periods=1).sum()
-    )
-    df[f'sig_{w}d'] = df.groupby('city')['signals'].transform(
-        lambda x: x.rolling(window=w, min_periods=1).sum()
-    )
-
-# 8) Цільова змінна – чи буде атака наступного дня?
-df['y_next'] = df.groupby('city')['attacks'].shift(-1).fillna(0).astype(int)
-
-# 9) Зберігаємо кінцевий датасет
-out_cols = [
-    'city','date','latitude','longitude',
-    'cnt_1d','cnt_7d','cnt_30d',
-    'sig_1d','sig_7d','sig_30d','y_next'
-]
-df[out_cols].to_csv('model_dataset.csv', index=False, encoding='utf-8')
-print("✅ Збережено model_dataset.csv з", len(df), "рядків")
+if __name__ == "__main__":
+    main()
