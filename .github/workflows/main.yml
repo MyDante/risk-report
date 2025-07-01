@@ -46,7 +46,7 @@ jobs:
         run: python train_model.py
 
       - name: Predict attacks
-        run: python predict_attacks.py
+        run: python predict_multiclass.py
 
       - name: Deploy to gh-pages
         run: |
