@@ -1,64 +1,72 @@
 import folium
 import pandas as pd
 import json
-from shapely.geometry import shape, mapping
-from shapely.ops import transform
-import pyproj
+from datetime import datetime, timedelta
+from math import sqrt
 
-MAJOR_CITIES = [
-    'Kyiv','Kharkiv','Odesa','Dnipro','Donetsk','Lviv','Zaporizhzhia',
-    'Kryvyi Rih','Mykolaiv','Mariupol','Vinnytsia','Kherson',
-    'Poltava','Sumy','Chernihiv','Cherkasy','Chernivtsi',
-    'Rivne','Ternopil','Uzhhorod','Lutsk','Ivano-Frankivsk'
-]
+MAJOR_CITIES = [ ... ]  # твій список
 
-# 1) Дані по атаках і координатах
-attacks = pd.read_csv('attacks_history.csv', parse_dates=['date'])
-coords  = pd.read_csv('city_coords.csv')
+# 1) Зчитаємо історію атак
+df_att = pd.read_csv('attacks_history.csv', parse_dates=['date'])
 
-# 2) Фільтруємо по великих містах
-attacks = attacks[attacks['city'].isin(MAJOR_CITIES)]
-coords  = coords[coords['city'].isin(MAJOR_CITIES)]
+# 2) Фільтруємо тільки останні 7 днів
+today = datetime.utcnow().date()
+cutoff = today - timedelta(days=7)
+recent = df_att[df_att['date'].dt.date >= cutoff]
 
-# 3) Підрахунок атак
-counts = attacks.groupby('city').size().rename('count').reset_index()
+# 3) Відбираємо лише великі міста і рахуємо події
+recent = recent[recent['city'].isin(MAJOR_CITIES)]
+counts = recent.groupby('city').size().rename('count').reset_index()
+
+# 4) Зчитаємо координати великих міст
+coords = pd.read_csv('city_coords.csv')
+coords = coords[coords['city'].isin(MAJOR_CITIES)]
+
 df = coords.merge(counts, on='city', how='left').fillna({'count':0})
 
-# 4) Створюємо карту
+# 5) Налаштовуємо карту
 m = folium.Map(location=[48.5, 31.5], zoom_start=6)
 
-# 5) Накладаємо кордони областей з локального файлу
-with open('oblast.geojson', 'r', encoding='utf-8') as f:
+# 6) Класичні кордони областей (локальний файл)
+with open('oblast.geojson','r',encoding='utf-8') as f:
     oblasts = json.load(f)
+folium.GeoJson(oblasts, style_function=lambda f: {
+    'fillColor':'none','color':'black','weight':1
+}).add_to(m)
 
-folium.GeoJson(
-    oblasts,
-    style_function=lambda feat: {
-        'fillColor': 'none',
-        'color': 'black',
-        'weight': 1
-    }
-).add_to(m)
+# 7) Масштабування радіусу:
+max_count = df['count'].max()
+# AB: якщо max_count==0, поставимо хоча б 1, щоб не ділити на нуль
+if max_count == 0:
+    max_count = 1
 
-# (Якщо є локальний фронт—KMZ треба спочатку конвертувати в GeoJSON.
-# Покажемо буфер навколо кордонів областей як приклад:)
-# 6) Приклад буфера довкола всієї області (20 км)
-# … (цей блок можна тимчасово пропустити)
-
-# 7) Додаємо маркери міст
+# 8) Додаємо маркери
 for _, r in df.iterrows():
-    if r['count'] > 0:
+    c = int(r['count'])
+    if c>0:
+        # радіус: sqrt(count/max_count) * 30px
+        radius = sqrt(c / max_count) * 30
         folium.CircleMarker(
             location=[r.latitude, r.longitude],
-            radius=5 + r['count'],
-            color='blue',
+            radius=radius,
+            color='crimson',
             fill=True, fill_opacity=0.6,
-            tooltip=f"{r['city']}: {int(r['count'])} attacks"
+            tooltip=f"{r['city']}: {c} attacks last 7d"
         ).add_to(m)
 
-# 8) Легенда
-folium.LayerControl().add_to(m)
+# 9) Легенда: можна у заголовку або як HTML
+legend_html = f'''
+  <div style="position: fixed;
+              bottom: 50px; left: 50px; width: 180px; height: 90px;
+              background: white; border:2px solid grey; z-index:9999;
+              font-size:14px;">
+    &nbsp;<b>Attacks (7d)</b><br>
+    &nbsp;● = fewer &nbsp;(1)<br>
+    &nbsp;● = more &nbsp;({max_count})
+  </div>
+'''
+m.get_root().html.add_child(folium.Element(legend_html))
 
-# 9) Зберігаємо
+# 10) Зберігаємо
 m.save('attack_map.html')
-print("✅ Карта з областями і містами збережена в attack_map.html")
+print("✅ Карта оновлена — точки за останні 7 днів, радіус пропорційний частоті.")
