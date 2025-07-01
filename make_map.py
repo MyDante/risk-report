@@ -4,15 +4,28 @@ import json
 from datetime import timedelta
 from math import sqrt
 
-# 1) Зчитаємо всю історію атак
+# 1) Завантажуємо історію атак
 df_att = pd.read_csv('attacks_history.csv', parse_dates=['date'])
 
-# 2) Визначимо межу — 7 днів назад від останньої дати в даних
+# 2) Знаходимо останню дату та беремо події за останні 7 днів
 last_data_date = df_att['date'].max().date()
 cutoff = last_data_date - timedelta(days=7)
-
-# 3) Відберемо усі атаки за останні 7 днів
 recent = df_att[df_att['date'].dt.date >= cutoff]
+
+# ===== ДІАГНОСТИКА ВІДСУТНІХ КООРДИНАТ =====
+# Які у нас міста в recent?
+attacked = recent['city'].unique().tolist()
+
+# Зчитуємо наявні в city_coords.csv
+coords = pd.read_csv('city_coords.csv')
+
+# Різниця — це міста без координат
+missing = set(attacked) - set(coords['city'])
+print("Cities missing coords:", missing)
+# ==========================================
+
+# 3) Тепер фільтруємо coords і далі будуємо карту…
+coords = coords[coords['city'].isin(attacked)]
 
 # 4) Порахуймо, скільки атак було в кожному місті
 counts = (
