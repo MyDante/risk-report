@@ -34,7 +34,8 @@ def main():
     top10['p_attack'] = (top10['p_attack'] * 100).round(1).astype(str) + '%'
     
     # 9) Зберігаємо CSV та HTML
-    date_str = last_date.strftime('%Y-%m-%d')
+    from datetime import datetime
+    date_str  = datetime.utcnow().strftime(01-07-2025)
     csv_name  = f'predictions_{date_str}.csv'
     html_name = f'predictions_{date_str}.html'
     
